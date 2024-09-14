@@ -1,14 +1,13 @@
+# agents.py
 import os
+import io
+import logging
 from crewai import Agent, Task, Crew
 from langchain_groq import ChatGroq
-
-# Initialize the Groq LLM
 from dotenv import load_dotenv
 
 # Load the environment variables from .env
 load_dotenv()
-
-# Use the API key from the environment variable
 api_key = os.getenv("GROQ_API_KEY")
 
 # Initialize the Groq LLM
@@ -17,7 +16,6 @@ llm = ChatGroq(
     model_name="llama3-70b-8192",
     api_key=api_key
 )
-
 
 # Define agents
 planner = Agent(
@@ -47,7 +45,7 @@ editor = Agent(
     verbose=True
 )
 
-# Define taskspyht
+# Define tasks
 plan_task = Task(
     description="Create an outline and key SEO points for {topic}.",
     expected_output="A detailed content plan with outline, keywords, and sources.",
@@ -66,18 +64,44 @@ edit_task = Task(
     agent=editor
 )
 
-# Create and execute the Crew
+# Create the Crew
 crew = Crew(
     agents=[planner, writer, editor],
     tasks=[plan_task, write_task, edit_task],
     verbose=2
 )
 
-# Function to run the Crew
 def run_crew(topic):
-    return crew.kickoff(inputs={"topic": topic})
+    # Prepare inputs
+    inputs = {"topic": topic}
+    
+    # Configure logging to capture logs
+    logger = logging.getLogger('crewai')
+    logger.setLevel(logging.DEBUG)
+    log_stream = io.StringIO()
+    handler = logging.StreamHandler(log_stream)
+    handler.setLevel(logging.DEBUG)
+    logger.addHandler(handler)
+
+    # Execute the crew
+    final_output = crew.kickoff(inputs=inputs)
+
+    # Retrieve logs
+    process_logs = log_stream.getvalue()
+    logger.removeHandler(handler)
+    handler.close()
+
+    # Structure the output
+    result = {
+        "final_output": final_output if isinstance(final_output, str) else "No output generated",
+        "process_logs": process_logs
+    }
+
+    return result
 
 # Example execution
 if __name__ == "__main__":
     result = run_crew("The impact of AI on healthcare")
-    print(result)
+    print(result['process_logs'])
+    print("Final Output:")
+    print(result['final_output'])
