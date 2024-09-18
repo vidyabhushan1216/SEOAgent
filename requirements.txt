@@ -5,4 +5,7 @@ langchain_community==0.0.29
 langchain_groq
 streamlit
 python-dotenv
+pysqlite3-binary>=0.5.0
+chromadb>=0.3.22
+
 
