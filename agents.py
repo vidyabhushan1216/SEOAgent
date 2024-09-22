@@ -10,6 +10,10 @@ from langchain.agents import Tool, AgentExecutor
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
+# Check if the API key is present
+if not openai_api_key:
+    raise ValueError("OPENAI_API_KEY environment variable not found. Please set it in your .env file or system environment.")
+
 # Initialize the OpenAI LLM (you can also use Hugging Face models for free)
 llm = ChatOpenAI(
     openai_api_key=openai_api_key,
@@ -26,8 +30,8 @@ class SEOAgent:
 
     def run(self, inputs):
         prompt = f"You are an expert {self.role}. {self.goal.format(**inputs)}"
-        response = self.llm.generate_responses([prompt])
-        return response[0]
+        response = self.llm.generate([prompt])  # Updated to use generate() instead of generate_responses()
+        return response[0].text  # Ensure this returns the text of the response
 
 # Define tasks as simple functions
 def run_planner(topic):
