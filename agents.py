@@ -5,19 +5,22 @@ import concurrent.futures
 from dotenv import load_dotenv
 from langchain.chat_models import ChatOpenAI
 from langchain.agents import Tool, AgentExecutor
+import streamlit as st
 
-# Load the environment variables from .env
+# Load the environment variables from .env (for local development)
 load_dotenv()
-openai_api_key = os.getenv("OPENAI_API_KEY")
+
+# Use Streamlit's secrets management to retrieve the OpenAI API key during deployment
+openai_api_key = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY")
 
 # Check if the API key is present
 if not openai_api_key:
-    raise ValueError("OPENAI_API_KEY environment variable not found. Please set it in your .env file or system environment.")
+    raise ValueError("OPENAI_API_KEY not found. Ensure it is set in Streamlit's Secrets or in the .env file.")
 
-# Initialize the OpenAI LLM (you can also use Hugging Face models for free)
+# Initialize the OpenAI LLM
 llm = ChatOpenAI(
     openai_api_key=openai_api_key,
-    model_name="gpt-3.5-turbo",  # This model has a free usage tier.
+    model_name="gpt-3.5-turbo",
     temperature=0
 )
 
@@ -86,12 +89,8 @@ def run_tasks_concurrently(topic):
             except Exception as exc:
                 print(f"{task_name} task generated an exception: {exc}")
 
-# Example of execution with concurrency
-if __name__ == "__main__":
-    # Define the topic for content creation and SEO research
-    topic = "The impact of AI on healthcare"
-    
-    # Configure logging to capture logs
+# Define the main function to execute tasks
+def run_crew(topic):
     logger = logging.getLogger('seoai')
     logger.setLevel(logging.DEBUG)
     log_stream = io.StringIO()
@@ -99,14 +98,13 @@ if __name__ == "__main__":
     handler.setLevel(logging.DEBUG)
     logger.addHandler(handler)
 
-    # Run tasks concurrently
     run_tasks_concurrently(topic)
 
-    # Retrieve logs
     process_logs = log_stream.getvalue()
     logger.removeHandler(handler)
     handler.close()
 
-    # Output the logs
-    print("Process Logs:")
-    print(process_logs)
+    return {
+        "process_logs": process_logs,
+        "final_output": "Generated SEO-optimized article based on the topic."
+    }
