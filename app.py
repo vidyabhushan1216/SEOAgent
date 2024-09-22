@@ -42,10 +42,12 @@ if st.sidebar.button("Generate Article"):
                         else:
                             st.text(section)
 
-                # Display the final generated article
+                # Display the final generated article content
                 st.write("---")
                 st.markdown("## 📄 Final Generated Article")
                 st.success("Your SEO-optimized article is ready!")
+                
+                # Display the actual article content here
                 st.write(final_output)
 
                 st.balloons()  # Celebration animation
