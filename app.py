@@ -1,4 +1,3 @@
-# app.py
 import streamlit as st
 from agents import run_crew
 
@@ -26,21 +25,6 @@ if st.sidebar.button("Generate Article"):
                 # Extract the process logs
                 process_logs = result.get("process_logs", "")
                 final_output = result.get("final_output", "No final output available")
-
-                # Parse the process logs to separate outputs from each agent
-                agent_sections = process_logs.split("=== Agent Execution ===")
-                for section in agent_sections:
-                    if section.strip():
-                        st.write("---")  # Separator between agents
-                        lines = section.strip().splitlines()
-                        role_line = next((line for line in lines if "Role:" in line), None)
-                        if role_line:
-                            role = role_line.split("Role:")[1].strip()
-                            st.markdown(f"### **{role}**")
-                            with st.expander(f"See what the {role} did"):
-                                st.text('\n'.join(lines))
-                        else:
-                            st.text(section)
 
                 # Display the final generated article content
                 st.write("---")
