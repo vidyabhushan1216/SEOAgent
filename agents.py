@@ -1,4 +1,3 @@
-# agents.py
 import os
 import io
 import logging
@@ -6,7 +5,7 @@ import concurrent.futures
 from dotenv import load_dotenv
 from langchain.chat_models import ChatOpenAI
 
-# Load the environment variables from .env
+# Load environment variables from .env
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
@@ -14,7 +13,7 @@ openai_api_key = os.getenv("OPENAI_API_KEY")
 if not openai_api_key:
     raise ValueError("OPENAI_API_KEY environment variable not found. Please set it in your .env file or system environment.")
 
-# Initialize the OpenAI LLM (you can also use Hugging Face models for free)
+# Initialize the OpenAI LLM
 llm = ChatOpenAI(
     openai_api_key=openai_api_key,
     model_name="gpt-3.5-turbo",  # This model has a free usage tier.
@@ -31,9 +30,9 @@ class SEOAgent:
     def run(self, inputs):
         prompt = f"You are an expert {self.role}. {self.goal.format(**inputs)}"
         response = self.llm.generate([prompt])
-        return response[0].text  # Ensure this returns the text of the response
+        return response[0].text  # Return the text of the response
 
-# Define tasks as simple functions
+# Define tasks as functions
 def run_planner(topic):
     planner = SEOAgent(
         role="Content Planner",
@@ -66,7 +65,7 @@ def run_keyword_research(topic):
     )
     return keyword_research_agent.run({"topic": topic})
 
-# Define a function to run all tasks concurrently
+# Run all tasks concurrently
 def run_tasks_concurrently(topic):
     tasks = {
         "plan": run_planner,
@@ -78,7 +77,7 @@ def run_tasks_concurrently(topic):
     # Capture outputs from all tasks
     task_outputs = {}
     
-    # Running tasks concurrently
+    # Run tasks concurrently
     with concurrent.futures.ThreadPoolExecutor() as executor:
         future_to_task = {executor.submit(task, topic): task_name for task_name, task in tasks.items()}
         for future in concurrent.futures.as_completed(future_to_task):
@@ -90,7 +89,7 @@ def run_tasks_concurrently(topic):
 
     return task_outputs
 
-# Define the function to capture logs and final output
+# Function to capture logs and final output
 def run_crew(topic):
     logger = logging.getLogger('seoai')
     logger.setLevel(logging.DEBUG)
@@ -107,9 +106,9 @@ def run_crew(topic):
     handler.close()
 
     # Collect final article output
-    final_output = tasks_outputs.get("write", "No final article generated.")  # This ensures the written content is returned
+    final_output = tasks_outputs.get("write", "No final article generated.")  # Ensures the written content is returned
 
     return {
         "process_logs": process_logs,
-        "final_output": final_output  # This should contain the generated article
+        "final_output": final_output  # The generated article
     }
