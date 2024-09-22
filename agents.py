@@ -5,7 +5,7 @@ import concurrent.futures
 from dotenv import load_dotenv
 from langchain.chat_models import ChatOpenAI
 
-# Load environment variables from .env
+# Load the environment variables from .env
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
@@ -16,11 +16,11 @@ if not openai_api_key:
 # Initialize the OpenAI LLM
 llm = ChatOpenAI(
     openai_api_key=openai_api_key,
-    model_name="gpt-3.5-turbo",  # This model has a free usage tier.
+    model_name="gpt-3.5-turbo",  # Using GPT-3.5-turbo for article generation
     temperature=0
 )
 
-# Define custom Agents
+# Define custom SEO Agents
 class SEOAgent:
     def __init__(self, role, goal, llm):
         self.role = role
@@ -30,9 +30,9 @@ class SEOAgent:
     def run(self, inputs):
         prompt = f"You are an expert {self.role}. {self.goal.format(**inputs)}"
         response = self.llm.generate([prompt])
-        return response[0].text  # Return the text of the response
+        return response.generations[0][0].text  # Fix for extracting generated text
 
-# Define tasks as functions
+# Define task functions
 def run_planner(topic):
     planner = SEOAgent(
         role="Content Planner",
@@ -44,7 +44,7 @@ def run_planner(topic):
 def run_writer(topic):
     writer = SEOAgent(
         role="Content Writer",
-        goal="Write an insightful opinion piece on the topic: {topic}.",
+        goal="Write an insightful, high-quality article on the topic: {topic}.",
         llm=llm
     )
     return writer.run({"topic": topic})
@@ -52,7 +52,7 @@ def run_writer(topic):
 def run_editor(topic):
     editor = SEOAgent(
         role="Editor",
-        goal="Edit the blog post to align with journalistic standards and voice alignment for {topic}.",
+        goal="Edit the article to ensure journalistic standards and tone alignment for {topic}.",
         llm=llm
     )
     return editor.run({"topic": topic})
@@ -60,7 +60,7 @@ def run_editor(topic):
 def run_keyword_research(topic):
     keyword_research_agent = SEOAgent(
         role="SEO Specialist",
-        goal="Identify high-ranking keywords and SEO strategies for {topic}.",
+        goal="Identify SEO strategies and keywords for {topic}.",
         llm=llm
     )
     return keyword_research_agent.run({"topic": topic})
@@ -74,10 +74,7 @@ def run_tasks_concurrently(topic):
         "keyword_research": run_keyword_research
     }
 
-    # Capture outputs from all tasks
     task_outputs = {}
-    
-    # Run tasks concurrently
     with concurrent.futures.ThreadPoolExecutor() as executor:
         future_to_task = {executor.submit(task, topic): task_name for task_name, task in tasks.items()}
         for future in concurrent.futures.as_completed(future_to_task):
@@ -89,7 +86,7 @@ def run_tasks_concurrently(topic):
 
     return task_outputs
 
-# Function to capture logs and final output
+# Capture logs and final output
 def run_crew(topic):
     logger = logging.getLogger('seoai')
     logger.setLevel(logging.DEBUG)
@@ -105,10 +102,10 @@ def run_crew(topic):
     logger.removeHandler(handler)
     handler.close()
 
-    # Collect final article output
-    final_output = tasks_outputs.get("write", "No final article generated.")  # Ensures the written content is returned
+    # Collect the final article content
+    final_output = tasks_outputs.get("write", "No final article generated.")
 
     return {
         "process_logs": process_logs,
-        "final_output": final_output  # The generated article
+        "final_output": final_output
     }
