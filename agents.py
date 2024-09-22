@@ -1,58 +1,115 @@
-# app.py
-import streamlit as st
-from agents import run_crew
+# agents.py
+import os
+import io
+import logging
+import concurrent.futures
+from dotenv import load_dotenv
+from langchain.chat_models import ChatOpenAI
 
-# Streamlit UI setup
-st.set_page_config(page_title="SEO Article Generator", page_icon="📝", layout="wide")
+# Load the environment variables from .env
+load_dotenv()
+openai_api_key = os.getenv("OPENAI_API_KEY")
 
-st.title("📝 SEO Article Generator with CrewAI and Groq")
-st.markdown("""
-Welcome to the **SEO Article Generator**! Enter a topic below, and watch as our AI agents collaborate to produce a high-quality, SEO-optimized article.
-""")
+# Check if the API key is present
+if not openai_api_key:
+    raise ValueError("OPENAI_API_KEY environment variable not found. Please set it in your .env file or system environment.")
 
-# Input for the topic
-st.sidebar.header("User Input")
-topic = st.sidebar.text_input("Enter the topic you want to generate an article about:")
+# Initialize the OpenAI LLM (you can also use Hugging Face models for free)
+llm = ChatOpenAI(
+    openai_api_key=openai_api_key,
+    model_name="gpt-3.5-turbo",  # This model has a free usage tier.
+    temperature=0
+)
 
-# Button to trigger the Crew execution
-if st.sidebar.button("Generate Article"):
-    if topic:
-        st.markdown("## Process Overview")
-        with st.spinner("Generating SEO-optimized content..."):
+# Define custom Agents
+class SEOAgent:
+    def __init__(self, role, goal, llm):
+        self.role = role
+        self.goal = goal
+        self.llm = llm
+
+    def run(self, inputs):
+        prompt = f"You are an expert {self.role}. {self.goal.format(**inputs)}"
+        response = self.llm.generate([prompt])
+        return response[0].text  # Ensure this returns the text of the response
+
+# Define tasks as simple functions
+def run_planner(topic):
+    planner = SEOAgent(
+        role="Content Planner",
+        goal="Plan engaging and factually accurate content on the topic: {topic}.",
+        llm=llm
+    )
+    return planner.run({"topic": topic})
+
+def run_writer(topic):
+    writer = SEOAgent(
+        role="Content Writer",
+        goal="Write an insightful opinion piece on the topic: {topic}.",
+        llm=llm
+    )
+    return writer.run({"topic": topic})
+
+def run_editor(topic):
+    editor = SEOAgent(
+        role="Editor",
+        goal="Edit the blog post to align with journalistic standards and voice alignment for {topic}.",
+        llm=llm
+    )
+    return editor.run({"topic": topic})
+
+def run_keyword_research(topic):
+    keyword_research_agent = SEOAgent(
+        role="SEO Specialist",
+        goal="Identify high-ranking keywords and SEO strategies for {topic}.",
+        llm=llm
+    )
+    return keyword_research_agent.run({"topic": topic})
+
+# Define a function to run all tasks concurrently
+def run_tasks_concurrently(topic):
+    tasks = {
+        "plan": run_planner,
+        "write": run_writer,
+        "edit": run_editor,
+        "keyword_research": run_keyword_research
+    }
+
+    # Capture outputs from all tasks
+    task_outputs = {}
+    
+    # Running tasks concurrently
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future_to_task = {executor.submit(task, topic): task_name for task_name, task in tasks.items()}
+        for future in concurrent.futures.as_completed(future_to_task):
+            task_name = future_to_task[future]
             try:
-                # Run the crew and get the result
-                result = run_crew(topic)
+                task_outputs[task_name] = future.result()
+            except Exception as exc:
+                task_outputs[task_name] = f"{task_name} task generated an exception: {exc}"
 
-                # Extract the process logs
-                process_logs = result.get("process_logs", "")
-                final_output = result.get("final_output", "No final output available")
+    return task_outputs
 
-                # Parse the process logs to separate outputs from each agent
-                agent_sections = process_logs.split("=== Agent Execution ===")
-                for section in agent_sections:
-                    if section.strip():
-                        st.write("---")  # Separator between agents
-                        lines = section.strip().splitlines()
-                        role_line = next((line for line in lines if "Role:" in line), None)
-                        if role_line:
-                            role = role_line.split("Role:")[1].strip()
-                            st.markdown(f"### **{role}**")
-                            with st.expander(f"See what the {role} did"):
-                                st.text('\n'.join(lines))
-                        else:
-                            st.text(section)
+# Define the function to capture logs and final output
+def run_crew(topic):
+    logger = logging.getLogger('seoai')
+    logger.setLevel(logging.DEBUG)
+    log_stream = io.StringIO()
+    handler = logging.StreamHandler(log_stream)
+    handler.setLevel(logging.DEBUG)
+    logger.addHandler(handler)
 
-                # Display the final generated article content
-                st.write("---")
-                st.markdown("## 📄 Final Generated Article")
-                st.success("Your SEO-optimized article is ready!")
-                
-                # Display the actual article content here
-                st.write(final_output)
+    # Capture outputs from all tasks
+    tasks_outputs = run_tasks_concurrently(topic)
 
-                st.balloons()  # Celebration animation
+    process_logs = log_stream.getvalue()
+    logger.removeHandler(handler)
+    handler.close()
 
-            except Exception as e:
-                st.error(f"An error occurred: {e}")
-    else:
-        st.warning("Please enter a topic to generate an article.")
+    # Collect final article output
+    final_output = tasks_outputs.get("write", "No final article generated.")  # This ensures the written content is returned
+
+    return {
+        "process_logs": process_logs,
+        "final_output": final_output  # This should contain the generated article
+    }
