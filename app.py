@@ -13,7 +13,7 @@ Welcome to the **SEO Article Generator**! Enter a topic below, and watch as our 
 st.sidebar.header("User Input")
 topic = st.sidebar.text_input("Enter the topic you want to generate an article about:")
 
-# Button to trigger the Crew execution
+# Button to trigger article generation
 if st.sidebar.button("Generate Article"):
     if topic:
         st.markdown("## Process Overview")
@@ -26,12 +26,27 @@ if st.sidebar.button("Generate Article"):
                 process_logs = result.get("process_logs", "")
                 final_output = result.get("final_output", "No final output available")
 
+                # Parse the process logs to separate outputs from each agent
+                agent_sections = process_logs.split("=== Agent Execution ===")
+                for section in agent_sections:
+                    if section.strip():
+                        st.write("---")  # Separator between agents
+                        lines = section.strip().splitlines()
+                        role_line = next((line for line in lines if "Role:" in line), None)
+                        if role_line:
+                            role = role_line.split("Role:")[1].strip()
+                            st.markdown(f"### **{role}**")
+                            with st.expander(f"See what the {role} did"):
+                                st.text('\n'.join(lines))
+                        else:
+                            st.text(section)
+
                 # Display the final generated article content
                 st.write("---")
                 st.markdown("## 📄 Final Generated Article")
                 st.success("Your SEO-optimized article is ready!")
-                
-                # Display the actual article content here
+
+                # Display the actual article content
                 st.write(final_output)
 
                 st.balloons()  # Celebration animation
