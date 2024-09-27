@@ -1,107 +1,111 @@
-# agents.py
 import os
 import io
 import logging
-from crewai import Agent, Task, Crew
-from langchain_groq import ChatGroq
+import concurrent.futures
 from dotenv import load_dotenv
+from langchain.chat_models import ChatOpenAI
 
 # Load the environment variables from .env
 load_dotenv()
-api_key = os.getenv("GROQ_API_KEY")
+openai_api_key = os.getenv("OPENAI_API_KEY")
 
-# Initialize the Groq LLM
-llm = ChatGroq(
-    temperature=0,
-    model_name="llama3-70b-8192",
-    api_key=api_key
+# Check if the API key is present
+if not openai_api_key:
+    raise ValueError("OPENAI_API_KEY environment variable not found. Please set it in your .env file or system environment.")
+
+# Initialize the OpenAI LLM
+llm = ChatOpenAI(
+    openai_api_key=openai_api_key,
+    model_name="gpt-3.5-turbo",  # Using GPT-3.5-turbo for article generation
+    temperature=0
 )
 
-# Define agents
-planner = Agent(
-    llm=llm,
-    role="Content Planner",
-    goal="Plan engaging and factually accurate content on {topic}",
-    backstory="You're working on planning a blog article about the topic: {topic}.",
-    allow_delegation=False,
-    verbose=True
-)
+# Define custom SEO Agents
+class SEOAgent:
+    def __init__(self, role, goal, llm):
+        self.role = role
+        self.goal = goal
+        self.llm = llm
 
-writer = Agent(
-    llm=llm,
-    role="Content Writer",
-    goal="Write an insightful opinion piece on the topic: {topic}",
-    backstory="You write based on the Content Planner's outline and provide objective insights.",
-    allow_delegation=False,
-    verbose=True
-)
+    def run(self, inputs):
+        prompt = f"You are an expert {self.role}. {self.goal.format(**inputs)}"
+        response = self.llm.generate([prompt])
+        return response.generations[0][0].text  # Fix for extracting generated text
 
-editor = Agent(
-    llm=llm,
-    role="Editor",
-    goal="Edit the blog post to align with the organization's style.",
-    backstory="You review the content for journalistic standards and voice alignment.",
-    allow_delegation=False,
-    verbose=True
-)
+# Define task functions
+def run_planner(topic):
+    planner = SEOAgent(
+        role="Content Planner",
+        goal="Plan engaging and factually accurate content on the topic: {topic}.",
+        llm=llm
+    )
+    return planner.run({"topic": topic})
 
-# Define tasks
-plan_task = Task(
-    description="Create an outline and key SEO points for {topic}.",
-    expected_output="A detailed content plan with outline, keywords, and sources.",
-    agent=planner
-)
+def run_writer(topic):
+    writer = SEOAgent(
+        role="Content Writer",
+        goal="Write an insightful, high-quality article on the topic: {topic}.",
+        llm=llm
+    )
+    return writer.run({"topic": topic})
 
-write_task = Task(
-    description="Write the article based on the outline and content structure.",
-    expected_output="A draft of the article with clear, engaging content.",
-    agent=writer
-)
+def run_editor(topic):
+    editor = SEOAgent(
+        role="Editor",
+        goal="Edit the article to ensure journalistic standards and tone alignment for {topic}.",
+        llm=llm
+    )
+    return editor.run({"topic": topic})
 
-edit_task = Task(
-    description="Edit the draft for grammar, flow, and alignment.",
-    expected_output="A polished, publication-ready article.",
-    agent=editor
-)
+def run_keyword_research(topic):
+    keyword_research_agent = SEOAgent(
+        role="SEO Specialist",
+        goal="Identify SEO strategies and keywords for {topic}.",
+        llm=llm
+    )
+    return keyword_research_agent.run({"topic": topic})
 
-# Create the Crew
-crew = Crew(
-    agents=[planner, writer, editor],
-    tasks=[plan_task, write_task, edit_task],
-    verbose=2
-)
+# Run all tasks concurrently
+def run_tasks_concurrently(topic):
+    tasks = {
+        "plan": run_planner,
+        "write": run_writer,
+        "edit": run_editor,
+        "keyword_research": run_keyword_research
+    }
 
+    task_outputs = {}
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future_to_task = {executor.submit(task, topic): task_name for task_name, task in tasks.items()}
+        for future in concurrent.futures.as_completed(future_to_task):
+            task_name = future_to_task[future]
+            try:
+                task_outputs[task_name] = future.result()
+            except Exception as exc:
+                task_outputs[task_name] = f"{task_name} task generated an exception: {exc}"
+
+    return task_outputs
+
+# Capture logs and final output
 def run_crew(topic):
-    # Prepare inputs
-    inputs = {"topic": topic}
-    
-    # Configure logging to capture logs
-    logger = logging.getLogger('crewai')
+    logger = logging.getLogger('seoai')
     logger.setLevel(logging.DEBUG)
     log_stream = io.StringIO()
     handler = logging.StreamHandler(log_stream)
     handler.setLevel(logging.DEBUG)
     logger.addHandler(handler)
 
-    # Execute the crew
-    final_output = crew.kickoff(inputs=inputs)
+    # Capture outputs from all tasks
+    tasks_outputs = run_tasks_concurrently(topic)
 
-    # Retrieve logs
     process_logs = log_stream.getvalue()
     logger.removeHandler(handler)
     handler.close()
 
-    # Structure the output
-    result = {
-        "final_output": final_output if isinstance(final_output, str) else "No output generated",
-        "process_logs": process_logs
+    # Collect the final article content
+    final_output = tasks_outputs.get("write", "No final article generated.")
+
+    return {
+        "process_logs": process_logs,
+        "final_output": final_output
     }
-
-    return result
-
-# Example execution
-if __name__ == "__main__":
-    result = run_crew("The impact of AI on healthcare")
-    print(result['process_logs'])
-    print("Final Output:")
-    print(result['final_output'])
