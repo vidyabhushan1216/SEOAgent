@@ -1,3 +1,4 @@
+# app.py
 import streamlit as st
 from agents import run_crew
 
@@ -13,7 +14,7 @@ Welcome to the **SEO Article Generator**! Enter a topic below, and watch as our 
 st.sidebar.header("User Input")
 topic = st.sidebar.text_input("Enter the topic you want to generate an article about:")
 
-# Button to trigger article generation
+# Button to trigger the Crew execution
 if st.sidebar.button("Generate Article"):
     if topic:
         st.markdown("## Process Overview")
@@ -41,12 +42,10 @@ if st.sidebar.button("Generate Article"):
                         else:
                             st.text(section)
 
-                # Display the final generated article content
+                # Display the final generated article
                 st.write("---")
                 st.markdown("## 📄 Final Generated Article")
                 st.success("Your SEO-optimized article is ready!")
-
-                # Display the actual article content
                 st.write(final_output)
 
                 st.balloons()  # Celebration animation
